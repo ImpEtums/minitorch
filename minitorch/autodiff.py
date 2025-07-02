@@ -23,7 +23,22 @@ def central_difference(f: Any, *vals: Any, arg: int = 0, epsilon: float = 1e-6) 
         An approximation of $f'_i(x_0, \ldots, x_{n-1})$
     """
     # TODO: Implement for Task 1.1.
-    raise NotImplementedError('Need to implement for Task 1.1')
+    vals_list = list(vals)
+    
+    # Create two copies of the arguments
+    # vals_plus: x_i + epsilon
+    vals_plus = vals_list.copy()
+    vals_plus[arg] = vals_list[arg] + epsilon
+    
+    # vals_minus: x_i - epsilon  
+    vals_minus = vals_list.copy()
+    vals_minus[arg] = vals_list[arg] - epsilon
+    
+    # Apply central difference formula: [f(x + h) - f(x - h)] / (2h)
+    f_plus = f(*vals_plus)
+    f_minus = f(*vals_minus)
+    
+    return (f_plus - f_minus) / (2.0 * epsilon)
 
 
 variable_count = 1
@@ -62,7 +77,31 @@ def topological_sort(variable: Variable) -> Iterable[Variable]:
         Non-constant Variables in topological order starting from the right.
     """
     # TODO: Implement for Task 1.4.
-    raise NotImplementedError('Need to implement for Task 1.4')
+    visited = set()
+    # Result list to store the topological order
+    result = []
+    
+    def visit(var: Variable) -> None:
+        """Recursive helper function for DFS-based topological sort"""
+        # Skip if already visited or if it's a constant
+        if var.unique_id in visited or var.is_constant():
+            return
+            
+        # Mark as visited
+        visited.add(var.unique_id)
+        
+        # Visit all parent nodes first (DFS)
+        for parent in var.parents:
+            visit(parent)
+        
+        # Add current node to result after visiting all parents
+        result.append(var)
+    
+    # Start DFS from the given variable
+    visit(variable)
+    
+    # Return in reverse order (from right to left in computation graph)
+    return reversed(result)
 
 
 def backpropagate(variable: Variable, deriv: Any) -> None:
@@ -77,7 +116,39 @@ def backpropagate(variable: Variable, deriv: Any) -> None:
     No return. Should write to its results to the derivative values of each leaf through `accumulate_derivative`.
     """
     # TODO: Implement for Task 1.4.
-    raise NotImplementedError('Need to implement for Task 1.4')
+    
+    # Get topological order of variables
+    topo_order = topological_sort(variable)
+    
+    # Dictionary to store derivatives for each variable
+    derivatives = {}
+    
+    # Initialize the derivative of the output variable
+    derivatives[variable.unique_id] = deriv
+    
+    # Propagate derivatives backward through the computation graph
+    for var in topo_order:
+        # Skip if no derivative computed for this variable
+        if var.unique_id not in derivatives:
+            continue
+            
+        # Get the current derivative
+        current_deriv = derivatives[var.unique_id]
+        
+        # If this is a leaf node, accumulate the derivative
+        if var.is_leaf():
+            var.accumulate_derivative(current_deriv)
+        
+        # If this variable has parents, compute their derivatives using chain rule
+        if not var.is_constant() and var.history is not None and var.history.last_fn is not None:
+            # Get derivatives for parent variables using chain rule
+            parent_derivs = var.chain_rule(current_deriv)
+            
+            # Accumulate derivatives for parent variables
+            for parent_var, parent_deriv in parent_derivs:
+                if parent_var.unique_id not in derivatives:
+                    derivatives[parent_var.unique_id] = 0.0
+                derivatives[parent_var.unique_id] += parent_deriv
 
 
 @dataclass
