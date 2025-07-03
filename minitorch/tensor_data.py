@@ -44,7 +44,12 @@ def index_to_position(index: Index, strides: Strides) -> int:
     """
 
     # TODO: Implement for Task 2.1.
-    raise NotImplementedError('Need to implement for Task 2.1')
+    # 计算线性位置：position = sum(index[i] * strides[i])
+    # 这是标准的多维数组到一维数组的映射公式
+    position = 0
+    for i in range(len(index)):
+        position += index[i] * strides[i]
+    return int(position)
 
 
 def to_index(ordinal: int, shape: Shape, out_index: OutIndex) -> None:
@@ -61,7 +66,12 @@ def to_index(ordinal: int, shape: Shape, out_index: OutIndex) -> None:
 
     """
     # TODO: Implement for Task 2.1.
-    raise NotImplementedError('Need to implement for Task 2.1')
+    # 使用行优先（row-major）顺序将序号转换为多维索引
+    # 从最后一个维度开始，依次计算每个维度的索引
+    cur_ordinal = ordinal
+    for i in range(len(shape) - 1, -1, -1):
+        out_index[i] = cur_ordinal % shape[i]
+        cur_ordinal = cur_ordinal // shape[i]
 
 
 def broadcast_index(
@@ -84,7 +94,22 @@ def broadcast_index(
         None
     """
     # TODO: Implement for Task 2.2.
-    raise NotImplementedError('Need to implement for Task 2.2')
+    # 广播规则：从右向左对齐，维度为1的可以广播，缺失的维度视为1
+    # 计算维度差异
+    big_dims = len(big_shape)
+    small_dims = len(shape)
+    
+    # 从右向左处理每个维度
+    for i in range(small_dims):
+        # 对应的大张量维度索引
+        big_dim_idx = big_dims - small_dims + i
+        
+        if shape[i] == 1:
+            # 如果小张量该维度为1，则索引固定为0（广播）
+            out_index[i] = 0
+        else:
+            # 否则使用大张量对应维度的索引
+            out_index[i] = big_index[big_dim_idx]
 
 
 def shape_broadcast(shape1: UserShape, shape2: UserShape) -> UserShape:
@@ -102,7 +127,39 @@ def shape_broadcast(shape1: UserShape, shape2: UserShape) -> UserShape:
         IndexingError : if cannot broadcast
     """
     # TODO: Implement for Task 2.2.
-    raise NotImplementedError('Need to implement for Task 2.2')
+    # 广播规则：
+    # 1. 从右向左对齐维度
+    # 2. 对应维度必须相等或其中一个为1
+    # 3. 缺失的维度视为1
+    # 4. 结果维度取两者的最大值
+    
+    # 获取最大维度数
+    max_dims = max(len(shape1), len(shape2))
+    
+    # 将形状从右对齐，缺失的维度补1
+    extended_shape1 = (1,) * (max_dims - len(shape1)) + tuple(shape1)
+    extended_shape2 = (1,) * (max_dims - len(shape2)) + tuple(shape2)
+    
+    result_shape = []
+    
+    for i in range(max_dims):
+        dim1 = extended_shape1[i]
+        dim2 = extended_shape2[i]
+        
+        if dim1 == dim2:
+            # 维度相等，直接使用
+            result_shape.append(dim1)
+        elif dim1 == 1:
+            # shape1的维度为1，可以广播到shape2的维度
+            result_shape.append(dim2)
+        elif dim2 == 1:
+            # shape2的维度为1，可以广播到shape1的维度
+            result_shape.append(dim1)
+        else:
+            # 维度不兼容，无法广播
+            raise IndexingError(f"Cannot broadcast shapes {shape1} and {shape2}")
+    
+    return tuple(result_shape)
 
 
 def strides_from_shape(shape: UserShape) -> UserStrides:
@@ -228,7 +285,15 @@ class TensorData:
         ), f"Must give a position to each dimension. Shape: {self.shape} Order: {order}"
 
         # TODO: Implement for Task 2.1.
-        raise NotImplementedError('Need to implement for Task 2.1')
+        # 重新排列维度：根据order重新组织shape和strides
+        # permute操作不改变存储数据，只改变维度的顺序
+        
+        # 根据order重新排列shape和strides
+        new_shape = tuple(self.shape[i] for i in order)
+        new_strides = tuple(self.strides[i] for i in order)
+        
+        # 创建新的TensorData，共享同一存储
+        return TensorData(self._storage, new_shape, new_strides)
 
     def to_string(self) -> str:
         s = ""

@@ -160,7 +160,58 @@ def tensor_map(
         in_strides: Strides,
     ) -> None:
         # TODO: Implement for Task 3.1.
-        raise NotImplementedError('Need to implement for Task 3.1')
+        # Check if tensors are stride-aligned for optimization
+        if (
+            len(out_strides) == len(in_strides) 
+            and np.array_equal(out_strides, in_strides)
+            and np.array_equal(out_shape, in_shape)
+        ):
+            # Fast path: tensors are stride-aligned, iterate directly over storage
+            for i in prange(len(out)):
+                out[i] = fn(in_storage[i])
+        else:
+            # General path: use numpy buffers for indices as required by docstring
+            for i in prange(len(out)):
+                # Create numpy buffers for indices
+                out_index = np.zeros(MAX_DIMS, dtype=np.int32)
+                in_index = np.zeros(MAX_DIMS, dtype=np.int32)
+                
+                # Convert flat index to multidimensional index using pure calculations
+                # Avoid any variable modifications that Numba might interpret as loop variable changes
+                for dim_idx in range(len(out_shape)):
+                    # Calculate coordinate for this dimension using pure math
+                    # Get the product of all later dimensions
+                    divisor = 1
+                    for later_dim in range(dim_idx + 1, len(out_shape)):
+                        divisor *= out_shape[later_dim]
+                    
+                    # Get the product of all earlier dimensions  
+                    prior_product = 1
+                    for earlier_dim in range(dim_idx):
+                        prior_product *= out_shape[earlier_dim]
+                    
+                    # Calculate this dimension's coordinate
+                    out_index[dim_idx] = (i // divisor) % out_shape[dim_idx]
+                
+                # Broadcast out_index to in_index
+                for dim_idx in range(len(out_shape)):
+                    if dim_idx < len(in_shape):
+                        if in_shape[dim_idx] == 1:
+                            in_index[dim_idx] = 0
+                        else:
+                            in_index[dim_idx] = out_index[dim_idx]
+                    else:
+                        in_index[dim_idx] = 0
+                
+                # Calculate positions using index_to_position equivalent
+                out_pos = 0
+                in_pos = 0
+                for dim_idx in range(len(out_shape)):
+                    out_pos += out_index[dim_idx] * out_strides[dim_idx]
+                for dim_idx in range(len(in_shape)):
+                    in_pos += in_index[dim_idx] * in_strides[dim_idx]
+                
+                out[out_pos] = fn(in_storage[in_pos])
 
     return njit(parallel=True)(_map)  # type: ignore
 
@@ -199,7 +250,66 @@ def tensor_zip(
         b_strides: Strides,
     ) -> None:
         # TODO: Implement for Task 3.1.
-        raise NotImplementedError('Need to implement for Task 3.1')
+        # Check if all tensors are stride-aligned for optimization
+        if (
+            len(out_strides) == len(a_strides) == len(b_strides)
+            and np.array_equal(out_strides, a_strides)
+            and np.array_equal(out_strides, b_strides)
+            and np.array_equal(out_shape, a_shape)
+            and np.array_equal(out_shape, b_shape)
+        ):
+            # Fast path: all tensors are stride-aligned, iterate directly over storage
+            for i in prange(len(out)):
+                out[i] = fn(a_storage[i], b_storage[i])
+        else:
+            # General path: use numpy buffers for indices as required by docstring
+            for i in prange(len(out)):
+                # Create numpy buffers for indices
+                out_index = np.zeros(MAX_DIMS, dtype=np.int32)
+                a_index = np.zeros(MAX_DIMS, dtype=np.int32)
+                b_index = np.zeros(MAX_DIMS, dtype=np.int32)
+                
+                # Convert flat index to multidimensional index using pure calculations
+                for dim_idx in range(len(out_shape)):
+                    # Calculate coordinate for this dimension using pure math
+                    # Get the product of all later dimensions
+                    divisor = 1
+                    for later_dim in range(dim_idx + 1, len(out_shape)):
+                        divisor *= out_shape[later_dim]
+                    
+                    # Calculate this dimension's coordinate
+                    out_index[dim_idx] = (i // divisor) % out_shape[dim_idx]
+                
+                # Broadcast indices
+                for dim_idx in range(len(out_shape)):
+                    if dim_idx < len(a_shape):
+                        if a_shape[dim_idx] == 1:
+                            a_index[dim_idx] = 0
+                        else:
+                            a_index[dim_idx] = out_index[dim_idx]
+                    else:
+                        a_index[dim_idx] = 0
+                        
+                    if dim_idx < len(b_shape):
+                        if b_shape[dim_idx] == 1:
+                            b_index[dim_idx] = 0
+                        else:
+                            b_index[dim_idx] = out_index[dim_idx]
+                    else:
+                        b_index[dim_idx] = 0
+                
+                # Calculate positions
+                out_pos = 0
+                a_pos = 0
+                b_pos = 0
+                for dim_idx in range(len(out_shape)):
+                    out_pos += out_index[dim_idx] * out_strides[dim_idx]
+                for dim_idx in range(len(a_shape)):
+                    a_pos += a_index[dim_idx] * a_strides[dim_idx]
+                for dim_idx in range(len(b_shape)):
+                    b_pos += b_index[dim_idx] * b_strides[dim_idx]
+                
+                out[out_pos] = fn(a_storage[a_pos], b_storage[b_pos])
 
     return njit(parallel=True)(_zip)  # type: ignore
 
@@ -233,7 +343,41 @@ def tensor_reduce(
         reduce_dim: int,
     ) -> None:
         # TODO: Implement for Task 3.1.
-        raise NotImplementedError('Need to implement for Task 3.1')
+        # Parallel over output elements - use numpy buffers for indices
+        for i in prange(len(out)):
+            # Create numpy buffer for index
+            out_index = np.zeros(MAX_DIMS, dtype=np.int32)
+            
+            # Convert flat index to multidimensional index using pure calculations
+            for dim_idx in range(len(out_shape)):
+                # Calculate coordinate for this dimension using pure math
+                # Get the product of all later dimensions
+                divisor = 1
+                for later_dim in range(dim_idx + 1, len(out_shape)):
+                    divisor *= out_shape[later_dim]
+                
+                # Calculate this dimension's coordinate
+                out_index[dim_idx] = (i // divisor) % out_shape[dim_idx]
+            
+            # Calculate out_pos
+            out_pos = 0
+            for dim_idx in range(len(out_shape)):
+                out_pos += out_index[dim_idx] * out_strides[dim_idx]
+            
+            # Reduce along the specified dimension
+            for k in range(a_shape[reduce_dim]):
+                # Create a_index by copying out_index and setting reduce_dim
+                a_index = np.zeros(MAX_DIMS, dtype=np.int32)
+                for dim_idx in range(len(out_shape)):
+                    a_index[dim_idx] = out_index[dim_idx]
+                a_index[reduce_dim] = k
+                
+                # Calculate a_pos
+                a_pos = 0
+                for dim_idx in range(len(a_shape)):
+                    a_pos += a_index[dim_idx] * a_strides[dim_idx]
+                
+                out[out_pos] = fn(out[out_pos], a_storage[a_pos])
 
     return njit(parallel=True)(_reduce)  # type: ignore
 
@@ -283,7 +427,41 @@ def _tensor_matrix_multiply(
     b_batch_stride = b_strides[0] if b_shape[0] > 1 else 0
 
     # TODO: Implement for Task 3.2.
-    raise NotImplementedError('Need to implement for Task 3.2')
+    # Get dimensions
+    batch_size = out_shape[0]
+    out_rows = out_shape[1]  # a_shape[-2]
+    out_cols = out_shape[2]  # b_shape[-1] 
+    inner_dim = a_shape[2]   # a_shape[-1] == b_shape[-2]
+    
+    # Parallel over batch and output rows
+    for batch in prange(batch_size):
+        for i in range(out_rows):
+            for j in range(out_cols):
+                # Calculate output position
+                out_pos = (
+                    batch * out_strides[0] + 
+                    i * out_strides[1] + 
+                    j * out_strides[2]
+                )
+                
+                # Accumulate dot product
+                acc = 0.0
+                for k in range(inner_dim):
+                    # Calculate a position
+                    a_pos = (
+                        batch * a_batch_stride + 
+                        i * a_strides[1] + 
+                        k * a_strides[2]
+                    )
+                    # Calculate b position  
+                    b_pos = (
+                        batch * b_batch_stride + 
+                        k * b_strides[1] + 
+                        j * b_strides[2]
+                    )
+                    acc += a_storage[a_pos] * b_storage[b_pos]
+                
+                out[out_pos] = acc
 
 
 tensor_matrix_multiply = njit(parallel=True, fastmath=True)(_tensor_matrix_multiply)

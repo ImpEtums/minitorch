@@ -119,8 +119,9 @@ def exp(x: float) -> float:
 def log_back(x: float, d: float) -> float:
     r"If $f = log$ as above, compute $d \times f'(x)$"
     # TODO: Implement for Task 0.1.
-    # Since log function is log(x + EPS), the derivative is 1/(x + EPS)
-    return d / (x + EPS)
+    if x <= 0:
+        raise ValueError("log_back: x must be greater than 0")
+    return d / x
 
 
 def inv(x: float) -> float:

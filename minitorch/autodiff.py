@@ -23,22 +23,16 @@ def central_difference(f: Any, *vals: Any, arg: int = 0, epsilon: float = 1e-6) 
         An approximation of $f'_i(x_0, \ldots, x_{n-1})$
     """
     # TODO: Implement for Task 1.1.
-    vals_list = list(vals)
+    vals_plus = list(vals)
+    vals_minus = list(vals)
     
-    # Create two copies of the arguments
-    # vals_plus: x_i + epsilon
-    vals_plus = vals_list.copy()
-    vals_plus[arg] = vals_list[arg] + epsilon
+    # Add epsilon to the arg-th position
+    vals_plus[arg] += epsilon
+    # Subtract epsilon from the arg-th position  
+    vals_minus[arg] -= epsilon
     
-    # vals_minus: x_i - epsilon  
-    vals_minus = vals_list.copy()
-    vals_minus[arg] = vals_list[arg] - epsilon
-    
-    # Apply central difference formula: [f(x + h) - f(x - h)] / (2h)
-    f_plus = f(*vals_plus)
-    f_minus = f(*vals_minus)
-    
-    return (f_plus - f_minus) / (2.0 * epsilon)
+    # Calculate central difference: (f(x+h) - f(x-h)) / (2*h)
+    return (f(*vals_plus) - f(*vals_minus)) / (2.0 * epsilon)
 
 
 variable_count = 1
@@ -78,30 +72,24 @@ def topological_sort(variable: Variable) -> Iterable[Variable]:
     """
     # TODO: Implement for Task 1.4.
     visited = set()
-    # Result list to store the topological order
-    result = []
+    topo_order = []
     
-    def visit(var: Variable) -> None:
-        """Recursive helper function for DFS-based topological sort"""
-        # Skip if already visited or if it's a constant
-        if var.unique_id in visited or var.is_constant():
+    def dfs(var):
+        if var.is_constant() or var.unique_id in visited:
             return
-            
-        # Mark as visited
         visited.add(var.unique_id)
         
-        # Visit all parent nodes first (DFS)
+        # Visit parents first
         for parent in var.parents:
-            visit(parent)
+            if parent is not None:
+                dfs(parent)
         
-        # Add current node to result after visiting all parents
-        result.append(var)
+        topo_order.append(var)
     
     # Start DFS from the given variable
-    visit(variable)
+    dfs(variable)
     
-    # Return in reverse order (from right to left in computation graph)
-    return reversed(result)
+    return topo_order
 
 
 def backpropagate(variable: Variable, deriv: Any) -> None:
@@ -115,40 +103,66 @@ def backpropagate(variable: Variable, deriv: Any) -> None:
 
     No return. Should write to its results to the derivative values of each leaf through `accumulate_derivative`.
     """
-    # TODO: Implement for Task 1.4.
+    # Build topological order using DFS
+    visited = set()
+    topo_order = []
     
-    # Get topological order of variables
-    topo_order = topological_sort(variable)
+    def dfs(var):
+        if var.unique_id in visited:
+            return
+        visited.add(var.unique_id)
+        
+        if var.history is not None and var.history.inputs:
+            for input_var in var.history.inputs:
+                if input_var is not None:
+                    dfs(input_var)
+        
+        topo_order.append(var)
     
-    # Dictionary to store derivatives for each variable
+    # Build topological order starting from output
+    dfs(variable)
+    
+    # Initialize derivatives dictionary
     derivatives = {}
-    
-    # Initialize the derivative of the output variable
     derivatives[variable.unique_id] = deriv
     
-    # Propagate derivatives backward through the computation graph
-    for var in topo_order:
-        # Skip if no derivative computed for this variable
+    # Process nodes in reverse topological order
+    for var in reversed(topo_order):
         if var.unique_id not in derivatives:
             continue
             
-        # Get the current derivative
-        current_deriv = derivatives[var.unique_id]
+        d_output = derivatives[var.unique_id]
         
-        # If this is a leaf node, accumulate the derivative
+        # If this is a leaf node or constant, accumulate derivative
         if var.is_leaf():
-            var.accumulate_derivative(current_deriv)
+            var.accumulate_derivative(d_output)
+            continue
         
-        # If this variable has parents, compute their derivatives using chain rule
-        if not var.is_constant() and var.history is not None and var.history.last_fn is not None:
-            # Get derivatives for parent variables using chain rule
-            parent_derivs = var.chain_rule(current_deriv)
+        # Skip constants (no history)
+        if var.history is None:
+            continue
+        
+        # Get backward function and compute gradients
+        last_fn = var.history.last_fn
+        ctx = var.history.ctx
+        inputs = var.history.inputs
+        
+        if inputs and last_fn is not None:
+            # Call backward to get gradients
+            gradients = last_fn._backward(ctx, d_output)
             
-            # Accumulate derivatives for parent variables
-            for parent_var, parent_deriv in parent_derivs:
-                if parent_var.unique_id not in derivatives:
-                    derivatives[parent_var.unique_id] = 0.0
-                derivatives[parent_var.unique_id] += parent_deriv
+            # Handle single gradient case
+            if not isinstance(gradients, tuple):
+                gradients = (gradients,)
+            
+            # Accumulate gradients for each input
+            for input_var, grad in zip(inputs, gradients):
+                if input_var is not None:
+                    key = input_var.unique_id
+                    if key in derivatives:
+                        derivatives[key] = derivatives[key] + grad
+                    else:
+                        derivatives[key] = grad
 
 
 @dataclass

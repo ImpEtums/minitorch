@@ -81,7 +81,42 @@ def _tensor_conv1d(
     s2 = weight_strides
 
     # TODO: Implement for Task 4.1.
-    raise NotImplementedError('Need to implement for Task 4.1')
+    # Parallelize over batch and output channels
+    for batch_idx in prange(batch):
+        for out_ch_idx in range(out_channels):
+            for out_w_idx in range(out_width):
+                # Initialize accumulator
+                acc = 0.0
+                
+                # Convolve over input channels and kernel width
+                for in_ch in range(in_channels):
+                    for k in range(kw):
+                        # Calculate input width position
+                        if reverse:
+                            # Anchor weight at right (for backward pass)
+                            w_pos = out_w_idx - k
+                        else:
+                            # Anchor weight at left (for forward pass)
+                            w_pos = out_w_idx + k
+                        
+                        # Check bounds
+                        if 0 <= w_pos < width:
+                            # Calculate storage positions
+                            input_pos = (batch_idx * s1[0] + 
+                                        in_ch * s1[1] + 
+                                        w_pos * s1[2])
+                            weight_pos = (out_ch_idx * s2[0] + 
+                                         in_ch * s2[1] + 
+                                         k * s2[2])
+                            
+                            # Accumulate
+                            acc += input[input_pos] * weight[weight_pos]
+                
+                # Store result
+                out_pos = (batch_idx * out_strides[0] + 
+                           out_ch_idx * out_strides[1] + 
+                           out_w_idx * out_strides[2])
+                out[out_pos] = acc
 
 
 tensor_conv1d = njit(parallel=True)(_tensor_conv1d)
@@ -207,7 +242,49 @@ def _tensor_conv2d(
     s20, s21, s22, s23 = s2[0], s2[1], s2[2], s2[3]
 
     # TODO: Implement for Task 4.2.
-    raise NotImplementedError('Need to implement for Task 4.2')
+    # Parallelize over batch and output channels
+    for batch_idx in prange(batch):
+        for out_ch_idx in range(out_channels):
+            for out_h_idx in range(out_shape[2]):
+                for out_w_idx in range(out_shape[3]):
+                    # Initialize accumulator
+                    acc = 0.0
+                    
+                    # Convolve over input channels and kernel dimensions
+                    for in_ch in range(in_channels):
+                        for kh_idx in range(kh):
+                            for kw_idx in range(kw):
+                                # Calculate input positions
+                                if reverse:
+                                    # Anchor weight at bottom-right (for backward pass)
+                                    h_pos = out_h_idx - kh_idx
+                                    w_pos = out_w_idx - kw_idx
+                                else:
+                                    # Anchor weight at top-left (for forward pass)
+                                    h_pos = out_h_idx + kh_idx
+                                    w_pos = out_w_idx + kw_idx
+                                
+                                # Check bounds
+                                if 0 <= h_pos < height and 0 <= w_pos < width:
+                                    # Calculate storage positions
+                                    input_pos = (batch_idx * s10 + 
+                                                in_ch * s11 + 
+                                                h_pos * s12 + 
+                                                w_pos * s13)
+                                    weight_pos = (out_ch_idx * s20 + 
+                                                 in_ch * s21 + 
+                                                 kh_idx * s22 + 
+                                                 kw_idx * s23)
+                                    
+                                    # Accumulate
+                                    acc += input[input_pos] * weight[weight_pos]
+                    
+                    # Store result
+                    out_pos = (batch_idx * out_strides[0] + 
+                               out_ch_idx * out_strides[1] + 
+                               out_h_idx * out_strides[2] + 
+                               out_w_idx * out_strides[3])
+                    out[out_pos] = acc
 
 
 tensor_conv2d = njit(parallel=True, fastmath=True)(_tensor_conv2d)

@@ -174,13 +174,18 @@ class Scalar:
         assert h.ctx is not None
 
         # TODO: Implement for Task 1.3.
-        # Get the derivatives from the backward function (use _backward to get tuple)
+        # Get the gradients from the backward function
         derivatives = h.last_fn._backward(h.ctx, d_output)
         
-        # Pair each input with its corresponding derivative
+        # Handle case where backward returns single value instead of tuple
+        if not isinstance(derivatives, tuple):
+            derivatives = (derivatives,)
+        
+        # Zip inputs with their corresponding derivatives
         result = []
-        for input_var, deriv in zip(h.inputs, derivatives):
-            result.append((input_var, deriv))
+        for i, (input_var, derivative) in enumerate(zip(h.inputs, derivatives)):
+            if input_var is not None:
+                result.append((input_var, derivative))
         
         return result
 

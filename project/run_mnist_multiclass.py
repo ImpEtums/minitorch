@@ -2,7 +2,7 @@ from mnist import MNIST
 
 import minitorch
 
-mndata = MNIST("project/data/")
+mndata = MNIST("data/")
 images, labels = mndata.load_training()
 
 BACKEND = minitorch.TensorBackend(minitorch.FastOps)
@@ -173,7 +173,7 @@ class ImageTrain:
                         out = model.forward(x.view(BATCH, 1, H, W)).view(BATCH, C)
                         for i in range(BATCH):
                             m = -1000
-                            ind = -1
+                            ind = 0
                             for j in range(C):
                                 if out[i, j] > m:
                                     ind = j

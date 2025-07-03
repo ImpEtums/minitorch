@@ -264,8 +264,27 @@ def tensor_map(
         in_shape: Shape,
         in_strides: Strides,
     ) -> None:
-        # TODO: Implement for Task 2.3.
-        raise NotImplementedError('Need to implement for Task 2.3')
+        # 对输出张量的每个位置应用函数fn
+        # 需要处理广播情况：输入张量可能比输出张量小
+        
+        # 遍历输出张量的所有位置
+        for ordinal in range(len(out)):
+            # 将一维位置转换为多维索引
+            out_index = np.zeros(len(out_shape), dtype=np.int32)
+            to_index(ordinal, out_shape, out_index)
+            
+            # 计算输出位置
+            out_pos = index_to_position(out_index, out_strides)
+            
+            # 将输出索引广播到输入张量的索引
+            in_index = np.zeros(len(in_shape), dtype=np.int32)
+            broadcast_index(out_index, out_shape, in_shape, in_index)
+            
+            # 计算输入位置
+            in_pos = index_to_position(in_index, in_strides)
+            
+            # 应用函数并存储结果
+            out[out_pos] = fn(in_storage[in_pos])
 
     return _map
 
@@ -309,8 +328,30 @@ def tensor_zip(
         b_shape: Shape,
         b_strides: Strides,
     ) -> None:
-        # TODO: Implement for Task 2.3.
-        raise NotImplementedError('Need to implement for Task 2.3')
+        # 对两个输入张量的对应元素应用函数fn
+        # 需要处理广播情况：输入张量可能比输出张量小
+        
+        # 遍历输出张量的所有位置
+        for ordinal in range(len(out)):
+            # 将一维位置转换为多维索引
+            out_index = np.zeros(len(out_shape), dtype=np.int32)
+            to_index(ordinal, out_shape, out_index)
+            
+            # 计算输出位置
+            out_pos = index_to_position(out_index, out_strides)
+            
+            # 将输出索引广播到第一个输入张量的索引
+            a_index = np.zeros(len(a_shape), dtype=np.int32)
+            broadcast_index(out_index, out_shape, a_shape, a_index)
+            a_pos = index_to_position(a_index, a_strides)
+            
+            # 将输出索引广播到第二个输入张量的索引
+            b_index = np.zeros(len(b_shape), dtype=np.int32)
+            broadcast_index(out_index, out_shape, b_shape, b_index)
+            b_pos = index_to_position(b_index, b_strides)
+            
+            # 应用函数并存储结果
+            out[out_pos] = fn(a_storage[a_pos], b_storage[b_pos])
 
     return _zip
 
@@ -340,8 +381,32 @@ def tensor_reduce(
         a_strides: Strides,
         reduce_dim: int,
     ) -> None:
-        # TODO: Implement for Task 2.3.
-        raise NotImplementedError('Need to implement for Task 2.3')
+        # 沿着指定维度reduce，输出形状在reduce_dim维度上为1
+        # 需要对该维度上的所有元素应用reduce函数
+        
+        # 遍历输出张量的所有位置
+        for ordinal in range(len(out)):
+            # 将一维位置转换为多维索引
+            out_index = np.zeros(len(out_shape), dtype=np.int32)
+            to_index(ordinal, out_shape, out_index)
+            
+            # 计算输出位置
+            out_pos = index_to_position(out_index, out_strides)
+            
+            # 沿着reduce_dim维度遍历所有元素
+            for i in range(a_shape[reduce_dim]):
+                # 构造输入张量的索引
+                a_index = out_index.copy()
+                a_index[reduce_dim] = i
+                
+                # 计算输入位置
+                a_pos = index_to_position(a_index, a_strides)
+                
+                # 如果是第一个元素，直接赋值；否则应用reduce函数
+                if i == 0:
+                    out[out_pos] = a_storage[a_pos]
+                else:
+                    out[out_pos] = fn(out[out_pos], a_storage[a_pos])
 
     return _reduce
 

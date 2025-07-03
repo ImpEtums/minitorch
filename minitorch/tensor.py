@@ -334,7 +334,9 @@ class Tensor:
             self.grad = Tensor.make(
                 [0] * int(operators.prod(self.shape)), self.shape, backend=self.backend
             )
-        self.grad += x
+        # Convert x to tensor if needed, then use expand to handle broadcasting correctly
+        x_tensor = self._ensure_tensor(x)
+        self.grad += self.expand(x_tensor)
 
     def is_leaf(self) -> bool:
         "True if this variable created by the user (no `last_fn`)"
